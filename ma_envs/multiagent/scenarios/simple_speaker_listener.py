@@ -25,7 +25,7 @@ class Scenario(BaseScenario):
             landmark.name = 'landmark %d' % i
             landmark.collide = False
             landmark.movable = False
-            landmark.size = 0.08
+            landmark.size = 0.075
 
         # add flags to show speaker's utterance
         world.flags = [Flag() for i in range(world.dim_c)]
@@ -85,13 +85,14 @@ class Scenario(BaseScenario):
 
     def reward(self, agent, world):
         # squared distance from listener to landmark
-        a = world.agents[0]
-        dist2 = np.sum(np.square(a.goal_a.state.p_pos - a.goal_b.state.p_pos))
-        return -dist2
         # a = world.agents[0]
-        # dist2 = np.sqrt(np.sum(np.square(a.goal_a.state.p_pos - a.goal_b.state.p_pos)))
-        # rew = 0 if dist2 < a.goal_b.size else -1
-        # return rew/2
+        # dist2 = np.sum(np.square(a.goal_a.state.p_pos - a.goal_b.state.p_pos))
+        # rew = -dist2
+        # return rew
+        a = world.agents[0]
+        dist2 = np.sqrt(np.sum(np.square(a.goal_a.state.p_pos - a.goal_b.state.p_pos)))
+        rew = 0 if dist2 < a.goal_b.size+a.size else -1
+        return rew/2
 
     def observation(self, agent, world):
         # goal color
@@ -118,7 +119,7 @@ class Scenario(BaseScenario):
         if agent.silent:
             return np.concatenate([agent.state.p_vel] + entity_pos + comm)
             
-    def success_rate(self, agent, world):
+    def done(self, agent, world):
         reach = 0
         # squared distance from listener to landmark
         a = world.agents[0]
