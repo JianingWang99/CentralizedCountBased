@@ -9,4 +9,4 @@ To install the environments, `cd` to the ma_envs directory, and `pip install -e 
 And check if you fullfill the requirements of stable-baselines like python3 (>=3.5), PyTorch...
 
 ## Training
-We include few tests in the directory
+We include few tests in the 
