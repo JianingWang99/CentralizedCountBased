@@ -32,19 +32,17 @@ eval_freq_timestep = horizon #how many timestep evaluate, -1 do not evaluate
 eval_episodes = 10
 
 #count-based parameters
-countbased_beta = 0.4 #set -1.0 to disable count-based
+countbased_beta = 0.8 #set -1.0 to disable count-based
 countbased_strategy = 'simhash'
-simhash_k = 32
+simhash_k = 256
 countbased_joint = True
 
 #tensorboard
-# tensorboard_log = "./maddpg_tensorboard/speaker_listener/"
-tensorboard_log = "./maddpg_tensorboard_new/2agents_2Landmarks/"
+tensorboard_log = f"./maddpg_tensorboard/{scenario_name}/"
 tb_log_name=f"MADDPG_beta_{countbased_beta}_strategy_{countbased_strategy}_k{simhash_k}_joint_{countbased_joint}_seed_{seed}"
-# tb_log_name="test"
 
 #save csv for evaluation reward and success rate
-csv_dir = f"./smaddpg_csv_new/{scenario_name}"
+csv_dir = f"./smaddpg_csv/{scenario_name}"
 file_name = f"{tb_log_name}.csv"
 df = pd.DataFrame(list())
 if not os.path.exists(csv_dir):
