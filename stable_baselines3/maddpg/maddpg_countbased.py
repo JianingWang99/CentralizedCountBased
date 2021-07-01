@@ -5,7 +5,7 @@ import numpy as np
 import csv
 
 from stable_baselines3.common import logger
-from stable_baselines3.maddpg.maddpg_algo import MADDPGAlgo
+from stable_baselines3.maddpg.maddpg_countbased_algo import MADDPGAlgo
 from stable_baselines3.common.type_aliases import GymEnv, RolloutReturn
 from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
 
@@ -50,9 +50,11 @@ class MADDPG:
                 D_size = 0
                 for i in range(self.env.n):
                     D_size += self.env.observation_space[i].shape[0]
+                    D_size += self.env.action_space[i].shape[0]
                 self.count_based_n = [CountBased(beta=countbased_beta, strategy=countbased_strategy, simhash_k=simhash_k, d_size=D_size)]
+                # self.count_based_n = [CountBased(beta=countbased_beta, strategy=countbased_strategy, simhash_k=simhash_k, d_size=D_size) for i in range(self.env.n)]
             else:
-                self.count_based_n = [CountBased(beta=countbased_beta, strategy=countbased_strategy, simhash_k=simhash_k, d_size=self.env.observation_space[i].shape[0]) for i in range(self.env.n)]
+                self.count_based_n = [CountBased(beta=countbased_beta, strategy=countbased_strategy, simhash_k=simhash_k, d_size=self.env.observation_space[i].shape[0]+self.env.action_space[i].shape[0]) for i in range(self.env.n)]
     
 
     def load(
@@ -124,7 +126,7 @@ class MADDPG:
                     # If no `gradient_steps` is specified,
                     # do as many gradients steps as steps performed during the rollout
                     gradient_steps = self.policy_n[i].gradient_steps if self.policy_n[i].gradient_steps > 0 else rollout.episode_timesteps
-                    self.policy_n[i].train(batch_size=self.policy_n[i].batch_size, gradient_steps=gradient_steps, replay_buffer_n=self.replay_buffer_n, policy_n=self.policy_n)
+                    self.policy_n[i].train(batch_size=self.policy_n[i].batch_size, gradient_steps=gradient_steps, replay_buffer_n=self.replay_buffer_n, policy_n=self.policy_n, count_based_n = self.count_based_n, countbased_joint=self.countbased_joint)
 
             if eval_freq_timestep != -1:
                 if self.policy_n[0].num_timesteps % eval_freq_timestep == 0:
@@ -155,7 +157,7 @@ class MADDPG:
         e_reward = 0
         e_success = 0
         e_co=0
-        self.env.render()
+        # self.env.render()
         for _ in range(horizon):
             # query for action from each agent's policy
             act_n = []
@@ -164,9 +166,9 @@ class MADDPG:
                 act_n.append(act)
             # step environment
             e_new_obs, e_reward_n, e_done_n, e_infos_n =  self.env.step(act_n)
-            self.env.render()
+            # self.env.render()
             obs_n = e_new_obs
-            print("eval === e_done_n, infos_n: ", e_done_n, e_infos_n)
+            # print("eval === e_done_n, infos_n: ", e_done_n, e_infos_n)
             e_reward += sum(e_reward_n)
             if any(e_done_n) == True:
                 e_success = 1
@@ -281,7 +283,7 @@ class MADDPG:
             done_n = [False for i in range(len(self.policy_n))]
             episode_reward, episode_timesteps = 0.0, 0
 
-            env.render()
+            # env.render()
             while not all(done_n):
                 
                 # if self.use_sde and self.sde_sample_freq > 0 and total_steps % self.sde_sample_freq == 0:
@@ -293,9 +295,9 @@ class MADDPG:
                 
                 # Rescale and perform action
                 new_obs_n, reward_n, done_n, infos_n = env.step(action_n)
-                env.render()
-                print("maddpg: ", action_n, new_obs_n, reward_n, done_n, infos_n)
-                # print("maddpg: ", action_n, reward_n, infos_n)
+                # env.render()
+                # print("maddpg: ", action_n, reward_n, done_n, infos_n)
+                print("maddpg: ", action_n, reward_n, infos_n)
                 if any(done_n) == True:
                     self.horizon_success += 1
 
@@ -325,31 +327,21 @@ class MADDPG:
                 if 1 in infos_n[0]['n']:
                     self.horizon_info += 1
 
-                old_reward_n = reward_n.copy()
                 if count_based_n:
-                    new_reward_n = []
+                #update count
                     if self.countbased_joint:
                         joint_obs = self.policy_n[0]._last_obs[0]
                         for i in range(1, len(self.policy_n)):
                             joint_obs = np.concatenate((joint_obs, self.policy_n[i]._last_obs[i]))
-                        #update count
-                        self.count_based_n[0].update(joint_obs)
-                        #reward add bonus
-                        bonus = self.count_based_n[0].reward(joint_obs)
-                        for i in range(len(self.policy_n)):
-                            new_reward_n.append(reward_n[i] + bonus)
+                        joint_act = buffer_action_n[0]
+                        for i in range(1, len(self.policy_n)):
+                            joint_act = np.concatenate((joint_act, buffer_action_n[i]))
+                        joint_obs_act_n = np.concatenate((joint_obs, joint_act)).round(2)
+                        count_based_n[0].update(joint_obs_act_n)
                     else:
-                        for i in range(len(self.policy_n)):
-                            #update count
-                            self.count_based_n[i].update(self.policy_n[i]._last_obs[i])
-                            #reward add bonus
-                            new_reward_n.append(reward_n[i] + self.count_based_n[i].reward(self.policy_n[i]._last_obs[i]))
-
-                    # for i in range(len(new_reward_n)):
-                    #     new_reward_n[i] +=0.5
-                        
-                    reward_n = new_reward_n
-                    # print("smaddpg new reward: ", reward_n)
+                        for i in range(0, len(self.policy_n)):
+                            joint_obs_act_i = np.concatenate((self.policy_n[i]._last_obs[i], buffer_action_n[i]))
+                            count_based_n[i].update(joint_obs_act_i)
 
                 # Store data in replay buffer
                 if all(replay_buffer_n) is not None:
@@ -364,7 +356,8 @@ class MADDPG:
                             # Avoid changing the original ones
                             self.policy_n[i]._last_original_obs, new_obs_, reward_ = self.policy_n[i]._last_obs, new_obs_n[i], reward_n[i]
                             new_obs_n_.append(new_obs_)
-                        print("smaddpg new reward: ", reward_)
+                        # print("maddpg reward_:", reward_)
+                        # print("replay buffer: ", self.policy_n[i]._last_original_obs[i], buffer_action_n[i])
                         replay_buffer_n[i].add(self.policy_n[i]._last_original_obs[i], new_obs_, buffer_action_n[i], reward_, done_n[i])
                 
                 for i in range(len(self.policy_n)):
@@ -385,7 +378,7 @@ class MADDPG:
                     break
             
             
-            self.horizon_reward += sum(old_reward_n)
+            self.horizon_reward += sum(reward_n)
             #Env Never Done!!! Change to every episode has horizon timestep.
             if horizon and self.policy_n[0].num_timesteps % horizon == 0:
                 total_episodes += 1
@@ -394,8 +387,9 @@ class MADDPG:
                     self.policy_n[i]._horizon_reward = self.horizon_reward
                     if count_based_n:
                         if self.countbased_joint and i > 0: continue
+                        print("count1 percentage: ", sum(map((1).__eq__, self.count_based_n[i].table.values()))/len(self.count_based_n[i].table.values()))
                         logger.record("count/count_1_percentage", sum(map((1).__eq__, self.count_based_n[i].table.values()))/len(self.count_based_n[i].table.values()))
-                        logger.record("count distribution", np.fromiter(self.count_based_n[i].table.values(), dtype=int))
+                        # logger.record("count distribution", np.fromiter(self.count_based_n[i].table.values(), dtype=int))
                 
                 self.horizon_reward = 0
                 episode_rewards.append(episode_reward)
@@ -407,8 +401,8 @@ class MADDPG:
                 
                 if self.env.world.flags:
                     #tensorboard record success rate for speaker_listener
-                    logger.record("reward/episode_success_rate", self.horizon_info/horizon)
-                    self.horizon_info = 0
+                    logger.record("reward/episode_success_rate", self.horizon_success/horizon)
+                    self.horizon_success = 0
                 else:
                     #tensorboard record collision
                     logger.record("count/episode_collision", self.horizon_info)
@@ -428,8 +422,3 @@ class MADDPG:
         for callback in callback_n:
             callback.on_rollout_end()
         return RolloutReturn(self.horizon_reward, total_steps, total_episodes, continue_training)
-
-
-        
-
-
