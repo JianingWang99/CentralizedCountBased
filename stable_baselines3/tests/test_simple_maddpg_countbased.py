@@ -22,83 +22,74 @@ load_model: Load the existing model.
 countbased_beta: -1.0 means disable the count based
 countbased_strategy: state function, 'None', 'decimals', 'simhash'
 '''
-betas = [0.2,0.4,0.6,0.8,1.2]
-seeds = [1000,2000]
-# seeds = [0]
 
-for b in betas:
-    for s in seeds:
-        seed = s
-        scenario_name = "simple"
-        shared_viewer = True
-        total_timesteps = 100000
-        horizon = 20
-        eval_freq_timestep = horizon #how many timestep evaluate
-        eval_episodes = 10
+seed = 0
+scenario_name = "simple"
+shared_viewer = True
+total_timesteps = 100000
+horizon = 20
+eval_freq_timestep = horizon #how many timestep evaluate
+eval_episodes = 10
 
-        #count-based parameters
-        countbased_beta = b #set -1.0 to disable count-based
-        countbased_strategy = 'None'
-        simhash_k = 32
-        countbased_joint = False
+#count-based parameters
+countbased_beta = 0.8 #set -1.0 to disable count-based
+countbased_strategy = 'simhash'
+simhash_k = 64
+countbased_joint = False
 
-        #tensorboard
-        # tensorboard_log = "./maddpg_tensorboard/speaker_listener/"
-        # tensorboard_log = "./maddpg_tensorboard_new/2agents_2Landmarks/"
-        tensorboard_log = "./maddpg_tensorboard_new/1agent_1Landmark/"
-        tb_log_name=f"SMADDPG_beta_{countbased_beta}_strategy_{countbased_strategy}_k{simhash_k}_joint_{countbased_joint}_seed_{seed}"
-        # tb_log_name="test"
+#tensorboard
+tensorboard_log = f"./smaddpg_tensorboard/{scenario_name}/"
+tb_log_name=f"SMADDPG_beta_{countbased_beta}_strategy_{countbased_strategy}_k{simhash_k}_joint_{countbased_joint}_seed_{seed}"
 
+#save csv for evaluation reward and success rate
+csv_dir = f"./smaddpg_csv/{scenario_name}"
+file_name = f"{tb_log_name}.csv"
+df = pd.DataFrame(list())
+if not os.path.exists(csv_dir):
+    os.mkdir(csv_dir)
+csv_dir = os.path.join(csv_dir, file_name)
+df.to_csv(csv_dir)
 
-        #save csv for evaluation reward and success rate
-        csv_dir = f"./smaddpg_csv_new/{scenario_name}"
-        file_name = f"{tb_log_name}.csv"
-        df = pd.DataFrame(list())
-        if not os.path.exists(csv_dir):
-            os.mkdir(csv_dir)
-        csv_dir = os.path.join(csv_dir, file_name)
-        df.to_csv(csv_dir)
-
-        #save and load model directory
-        save_model = False
-        save_dir = "./smaddpg_"+scenario_name+"_policy/agent_"
-        load_model = False
-        load_dir = "./smaddpg_"+scenario_name+"_policy/agent_"
+#save and load model directory
+save_model = False
+save_dir = "./smaddpg_"+scenario_name+"_policy/agent_"
+load_model = False
+load_dir = "./smaddpg_"+scenario_name+"_policy/agent_"
 
 
 
-        # load scenario from script 
-        scenario = scenarios.load(scenario_name + ".py").Scenario() #change from scenario to env
-        # create world
-        world = scenario.make_world()
-        # create multiagent environment
-        info_callback = None
-        done_callback = None
-        if scenario_name == "simple":
-            done_callback = scenario.done
-            
-        if scenario_name == "simple_spread":
-            info_callback = scenario.collision
-            done_callback = scenario.done
+# load scenario from script 
+scenario = scenarios.load(scenario_name + ".py").Scenario() #change from scenario to env
+# create world
+world = scenario.make_world()
+# create multiagent environment
+info_callback = None
+done_callback = None
+if scenario_name == "simple":
+    done_callback = scenario.done
 
-        if scenario_name == "simple_speaker_listener":
-            info_callback = scenario.success_rate
+if scenario_name == "simple_spread":
+    info_callback = scenario.collision
+    done_callback = scenario.done
 
-        env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation, info_callback=info_callback, done_callback=done_callback, shared_viewer = shared_viewer)
-        print('env_type: {}, n_agents: {}, action_space: {}, obs_space: {}'.format(scenario_name, env.n, env.action_space, env.observation_space))
+if scenario_name == "simple_speaker_listener":
+    info_callback = scenario.success_rate
 
-        simple_maddpg = SMADDPG(env, tensorboard_log=tensorboard_log, seed=seed, load_model=load_model, countbased_beta=countbased_beta, 
-                        countbased_strategy=countbased_strategy, simhash_k=simhash_k, countbased_joint=countbased_joint)
+env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation, info_callback=info_callback, done_callback=done_callback, shared_viewer = shared_viewer)
+print('env_type: {}, n_agents: {}, action_space: {}, obs_space: {}'.format(scenario_name, env.n, env.action_space, env.observation_space))
 
-        if load_model:
-            simple_maddpg.load(load_dir = load_dir)
+simple_maddpg = SMADDPG(env, tensorboard_log=tensorboard_log, seed=seed, load_model=load_model, countbased_beta=countbased_beta, 
+                countbased_strategy=countbased_strategy, simhash_k=simhash_k, countbased_joint=countbased_joint)
 
-        #log_interval set to 1, every horizon timesteps log one time.
-        simple_maddpg.learn(total_timesteps=total_timesteps, log_interval=1, horizon=horizon, tb_log_name=tb_log_name, eval_freq_timestep=eval_freq_timestep, eval_episodes=eval_episodes, csv_dir=csv_dir)
-        #save the models
-        if save_model:
-            for i in range(env.n):
-                simple_maddpg.policy_n[i].save(save_dir + str(i))
+if load_model:
+    simple_maddpg.load(load_dir = load_dir)
+
+#log_interval set to 1, every horizon timesteps log one time.
+simple_maddpg.learn(total_timesteps=total_timesteps, log_interval=1, horizon=horizon, tb_log_name=tb_log_name, eval_freq_timestep=eval_freq_timestep, eval_episodes=eval_episodes, csv_dir=csv_dir)
+#save the models
+if save_model:
+    for i in range(env.n):
+        simple_maddpg.policy_n[i].save(save_dir + str(i))
 
         
 ## execution loop
