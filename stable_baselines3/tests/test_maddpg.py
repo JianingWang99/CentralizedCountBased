@@ -29,16 +29,14 @@ shared_viewer = True
 total_timesteps = 1000000
 horizon = 20
 eval_freq_timestep = horizon #how many timestep evaluate, -1 do not evaluate
-eval_episodes = 1
+eval_episodes = 10
 
 #tensorboard
-# tensorboard_log = "./maddpg_tensorboard_new/speaker_listener/"
-tensorboard_log = "./maddpg_tensorboard_new/2agents_2Landmarks/"
+tensorboard_log = f"./maddpg_tensorboard/{scenario_name}/"
 tb_log_name="MADDPG_noBonus_seed_"+str(seed)
-# tb_log_name="test"
 
 #save csv for evaluation reward and success rate
-csv_dir = f"./maddpg_csv_new/{scenario_name}"
+csv_dir = f"./maddpg_csv/{scenario_name}"
 file_name = f"{tb_log_name}.csv"
 df = pd.DataFrame(list())
 if not os.path.exists(csv_dir):
