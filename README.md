@@ -1,4 +1,4 @@
-# Count-Based Exploration for Multi-agent Learning
+# Count-Based Exploration for Multi-Agent Learning
 This is the code for implementing Simple and Centralized Count-Based in the Master Thesis: 
 The multi-agent environment is from https://github.com/openai/multiagent-particle-envs and we make some changes for our experiments. 
 The DDPG code is from stable-basedline3 https://github.com/DLR-RM/stable-baselines3 and we extend it to Simple MADDPG and Centralized MADDPG. 
